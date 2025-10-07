@@ -72,6 +72,7 @@ We use **GNU Screen** to keep the server running in the background, even after S
 
 Once running, from the **same machine**:
 
+**Quick verification:**
 ```bash
 curl -s http://127.0.0.1:8000/v1/models -H "Authorization: Bearer dummy"
 ```
@@ -79,6 +80,12 @@ curl -s http://127.0.0.1:8000/v1/models -H "Authorization: Bearer dummy"
 Expected output:
 ```json
 {"object":"list","data":[{"id":"openai/gpt-oss-20b", ... }]}
+```
+
+**Comprehensive testing:**
+```bash
+make test-models    # Test /v1/models endpoint
+make test-tools     # Test tool calling functionality
 ```
 
 ---
