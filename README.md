@@ -1,5 +1,4 @@
 # vLLM Server Management Guide
-/alex 7-oct-2025
 
 This document explains how to start, manage, and stop the **vLLM OpenAI-compatible API server** running inside a `screen` session.
 
