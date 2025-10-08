@@ -21,7 +21,6 @@ CURL        := curl -s
 UV          ?= uv
 
 # --- Defaults (override in .env or on the CLI) ---------------------------------
-MODEL_ID    ?= openai/gpt-oss-20b
 PORT        ?= 8000
 HOST        ?= 127.0.0.1                # use 0.0.0.0 to listen on all interfaces
 TP          ?= 1                        # tensor parallel size
@@ -30,6 +29,13 @@ MAX_LEN     ?= 8192
 NUM_SEQS    ?= 4
 CUDA_DEVICES?= 0                        # which GPUs to use (comma-separated)
 AUTH_TOKEN  ?= dummy                    # vLLM accepts any non-empty Bearer
+LOG_DIR     ?= logs
+
+# ---- GPT-OSS 20B targets -----------------------------------------------------
+MODEL_ID ?= openai/gpt-oss-20b
+
+# ---- Llama single-GPU targets -------------------------------------------------
+MODEL_LLAMA8B ?= meta-llama/Meta-Llama-3.1-8B-Instruct
 
 # A lean local dev model for laptops (7B/8B class)
 DEV_MODEL_ID?= meta-llama/Meta-Llama-3.1-8B-Instruct
@@ -56,9 +62,49 @@ install:
 	$(UV) pip install -U vllm "huggingface_hub[cli]"
 	@echo "Done."
 
-# --- Serve: main 20B model -----------------------------------------------------
+# ---- Llama  targets -------------------------------------------------
+.PHONY: serve-llama8b test-llama8b logs-llama stop-llama
+
+serve-llama8b:
+	@mkdir -p $(LOG_DIR)
+	CUDA_VISIBLE_DEVICES=$(CUDA_DEVICES)  \
+	$(VLLM) serve "$(MODEL_LLAMA8B)" \
+	  --dtype auto \
+	  --max-model-len 8192 \
+	  --gpu-memory-utilization 0.92 \
+	  --max-num-seqs 512 \
+	  --tool-call-parser llama3_json \
+	  --enable-auto-tool-choice \
+	  --port $(PORT) 2>&1 | tee "$(LOG_DIR)/llama8b.$(PORT).log"
+
+# Minimal OpenAI-compatible smoke test
+test-llama-chat:
+	OPENAI_BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	OPENAI_API_KEY="$(strip $(AUTH_TOKEN))" \
+	$(UV) run scripts/test_models.py --alias llama8b chat --prompt "Say hello in 5 words." --max-tokens 16
+
+test-llama-tools:
+	OPENAI_BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	OPENAI_API_KEY="$(strip $(AUTH_TOKEN))" \
+	$(UV) run scripts/test_models.py --alias llama8b tools --prompt "Call get_time."
+
+test-llama-roundtrip:
+	OPENAI_BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	OPENAI_API_KEY="$(strip $(AUTH_TOKEN))" \
+	$(UV) run scripts/test_models.py --alias llama8b roundtrip --prompt "What time is it? Use the tool."
+
+# Follow logs for this run
+logs-llama:
+	@ls -1t $(LOG_DIR)/llama8b.$(PORT).log 2>/dev/null | head -n1 | xargs tail -n +1 -f
+
+# Stop helper (reuses your clean script if you have one)
+stop-llama:
+	@pkill -f "vllm serve .*$(MODEL_LLAMA8B).*--port $(PORT)" || true
+
+# --- Serve: GPT-OSS 20B model -----------------------------------------------------
 .PHONY: serve
 serve:
+	@mkdir -p $(LOG_DIR)
 	@echo "Serving $(MODEL_ID) on $(HOST):$(PORT) (TP=$(TP)) ..."
 	@CUDA_VISIBLE_DEVICES=$(CUDA_DEVICES) \
 	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
@@ -69,7 +115,7 @@ serve:
 	  --max-model-len $(MAX_LEN) \
 	  --max-num-seqs $(NUM_SEQS) \
       --tool-call-parser openai \
-	  --enable-auto-tool-choice
+	  --enable-auto-tool-choice 2>&1 | tee "$(LOG_DIR)/$(MODEL_ID).$(PORT).log"
 
 # Convenience: 2-GPU tensor parallel on powerful boxes (e.g., 2× 48GB)
 .PHONY: serve-tp2
