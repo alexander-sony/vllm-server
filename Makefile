@@ -37,6 +37,9 @@ MODEL_ID ?= openai/gpt-oss-20b
 # ---- Llama single-GPU targets -------------------------------------------------
 MODEL_LLAMA8B ?= meta-llama/Meta-Llama-3.1-8B-Instruct
 
+# ---- Llama 3.1 70B GPTQ INT4 targets -------------------------------------------------
+MODEL_LLAMA70B_GPTQ ?= hugging-quants/Meta-Llama-3.1-70B-Instruct-GPTQ-INT4
+
 # A lean local dev model for laptops (7B/8B class)
 DEV_MODEL_ID?= meta-llama/Meta-Llama-3.1-8B-Instruct
 
@@ -62,7 +65,48 @@ install:
 	$(UV) pip install -U vllm "huggingface_hub[cli]"
 	@echo "Done."
 
-# ---- Llama  targets -------------------------------------------------
+AUTO_TOOLS          ?= --enable-auto-tool-choice
+PARSER_LLAMA        ?= --tool-call-parser llama3_json
+
+# --- Serve: Llama 3.1 70B GPTQ INT4 on 2× A6000 ---
+.PHONY: serve-llama70b-gptq-tp2
+serve-llama70b-gptq-tp2:
+	@mkdir -p $(LOG_DIR)
+	HUGGING_FACE_HUB_TOKEN="$(HF_TOKEN)" \
+	CUDA_VISIBLE_DEVICES=0,1 vllm serve "$(MODEL_LLAMA70B_GPTQ)" \
+	  --tensor-parallel-size 2 \
+	  --quantization gptq \
+	  --enable-auto-tool-choice \
+	  --tool-call-parser llama3_json \
+	  --dtype auto \
+	  --max-model-len 8192 \
+	  --max-num-seqs 96 \
+	  --gpu-memory-utilization 0.95 \
+	  --swap-space 16 \
+	  --port $(PORT) 2>&1 | tee "$(LOG_DIR)/llama70b.gptq.tp2.$(PORT).log"	
+
+# --- Tests ---
+list-llama70b-gptq:
+	BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	AUTH_TOKEN="dummy" \
+	$(UV) run scripts/test_models.py models
+
+test-llama70b-gptq-chat:
+	BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	AUTH_TOKEN="dummy" \
+	$(UV) run scripts/test_models.py chat --model-id $(MODEL_LLAMA70B_GPTQ) --prompt "Say hello in 5 words." --max-tokens 16
+
+test-llama70b-gptq-tools:
+	BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	AUTH_TOKEN="dummy" \
+	$(UV) run scripts/test_models.py tools --model-id $(MODEL_LLAMA70B_GPTQ) --prompt "Call get_time."
+
+test-llama70b-gptq-roundtrip:
+	BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
+	AUTH_TOKEN="dummy" \
+	$(UV) run scripts/test_models.py roundtrip --model-id $(MODEL_LLAMA70B_GPTQ)
+
+# ---- Llama 3.1 8B Instruct targets -------------------------------------------------
 .PHONY: serve-llama8b test-llama8b logs-llama stop-llama
 
 serve-llama8b:
