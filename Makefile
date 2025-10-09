@@ -73,6 +73,10 @@ PARSER_LLAMA        ?= --tool-call-parser llama3_json
 serve-llama70b-gptq-tp2:
 	@mkdir -p $(LOG_DIR)
 	HUGGING_FACE_HUB_TOKEN="$(HF_TOKEN)" \
+	# Some setting that allows running on a multi-GPU A6000
+	NCCL_P2P_DISABLE=0 \
+	NCCL_P2P_LEVEL=NVL \
+	NCCL_SHM_DISABLE=0 \
 	CUDA_VISIBLE_DEVICES=0,1 vllm serve "$(MODEL_LLAMA70B_GPTQ)" \
 	--tensor-parallel-size 2 \
 	--quantization gptq_marlin \
