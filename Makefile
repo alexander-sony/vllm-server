@@ -83,9 +83,9 @@ serve-llama70b-gptq-tp2:
 	--enable-auto-tool-choice \
 	--tool-call-parser llama3_json \
 	--dtype auto \
-	--max-model-len 3072 \
-	--max-num-seqs 16 \
-	--gpu-memory-utilization 0.92 \
+	--max-model-len 8192 \
+	--max-num-seqs 96 \
+	--gpu-memory-utilization 0.95 \
 	--swap-space 16 \
 	--enforce-eager \
 	--disable-custom-all-reduce \
