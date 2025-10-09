@@ -10,6 +10,12 @@ The vLLM server provides an OpenAI-compatible API endpoint, typically used for l
 
 We use **GNU Screen** to keep the server running in the background, even after SSH disconnection.
 
+### GPU memory requirements excl KV cache
+70B model INT4 quantization
+
+- weights: 35G
+- quant overhead: ~2G
+
 ---
 
 ## ⚙️ Prerequisites

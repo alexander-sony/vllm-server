@@ -74,16 +74,36 @@ serve-llama70b-gptq-tp2:
 	@mkdir -p $(LOG_DIR)
 	HUGGING_FACE_HUB_TOKEN="$(HF_TOKEN)" \
 	CUDA_VISIBLE_DEVICES=0,1 vllm serve "$(MODEL_LLAMA70B_GPTQ)" \
-	  --tensor-parallel-size 2 \
-	  --quantization gptq \
-	  --enable-auto-tool-choice \
-	  --tool-call-parser llama3_json \
-	  --dtype auto \
-	  --max-model-len 8192 \
-	  --max-num-seqs 96 \
-	  --gpu-memory-utilization 0.95 \
-	  --swap-space 16 \
-	  --port $(PORT) 2>&1 | tee "$(LOG_DIR)/llama70b.gptq.tp2.$(PORT).log"	
+	--tensor-parallel-size 2 \
+	--quantization gptq_marlin \
+	--enable-auto-tool-choice \
+	--tool-call-parser llama3_json \
+	--dtype auto \
+	--max-model-len 3072 \
+	--max-num-seqs 16 \
+	--gpu-memory-utilization 0.92 \
+	--swap-space 16 \
+	--enforce-eager \
+	--disable-custom-all-reduce \
+	--port $(PORT) | tee "$(LOG_DIR)/llama70b.gptqmarlin.$(PORT).log"
+
+.PHONY: serve-llama70b-gptq-tp1
+serve-llama70b-gptq-tp1:
+	@mkdir -p $(LOG_DIR)
+	HUGGING_FACE_HUB_TOKEN="$(HF_TOKEN)" \
+	CUDA_VISIBLE_DEVICES=0 vllm serve "$(MODEL_LLAMA70B_GPTQ)" \
+	--tensor-parallel-size 1 \
+	--quantization gptq_marlin \
+	--enable-auto-tool-choice \
+	--tool-call-parser llama3_json \
+	--dtype auto \
+	--max-model-len 3072 \
+	--max-num-seqs 16 \
+	--gpu-memory-utilization 0.92 \
+	--swap-space 16 \
+	--enforce-eager \
+	--disable-custom-all-reduce \
+	--port $(PORT) | tee "$(LOG_DIR)/llama70b.gptqmarlin.$(PORT).log"
 
 # --- Tests ---
 list-llama70b-gptq:
