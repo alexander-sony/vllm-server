@@ -31,31 +31,14 @@ CUDA_DEVICES?= 0                        # which GPUs to use (comma-separated)
 AUTH_TOKEN  ?= dummy                    # vLLM accepts any non-empty Bearer
 LOG_DIR     ?= logs
 
-# ---- GPT-OSS 20B targets -----------------------------------------------------
-MODEL_ID ?= openai/gpt-oss-20b
-
 # ---- Llama single-GPU targets -------------------------------------------------
 MODEL_LLAMA8B ?= meta-llama/Meta-Llama-3.1-8B-Instruct
 
+# ---- GPT-OSS 20B targets -----------------------------------------------------
+MODEL_GPT_OSS_20B ?= openai/gpt-oss-20b
+
 # ---- Llama 3.1 70B GPTQ INT4 targets -------------------------------------------------
 MODEL_LLAMA70B_GPTQ ?= hugging-quants/Meta-Llama-3.1-70B-Instruct-GPTQ-INT4
-
-# A lean local dev model for laptops (7B/8B class)
-DEV_MODEL_ID?= meta-llama/Meta-Llama-3.1-8B-Instruct
-
-# --- Help ----------------------------------------------------------------------
-.PHONY: help
-help:
-	@echo "Targets:"
-	@echo "  make install           # install vLLM into $(VENV)"
-	@echo "  make serve             # serve $(MODEL_ID) @ $(HOST):$(PORT) (TP=$(TP))"
-	@echo "  make serve-tp2         # serve $(MODEL_ID) with tensor-parallel=2"
-	@echo "  make serve-8b          # serve $(DEV_MODEL_ID) for lightweight dev"
-	@echo "  make test              # /v1/models and simple chat completion"
-	@echo "  make ssh-tunnel REMOTE=user@host    # local port -> remote"
-	@echo "  make stop              # kill process listening on $(PORT)"
-	@echo ""
-	@echo "Override via CLI or .env (see .env.example)."
 
 # --- Setup ---------------------------------------------------------------------
 .PHONY: install
@@ -170,38 +153,20 @@ stop-llama:
 	@pkill -f "vllm serve .*$(MODEL_LLAMA8B).*--port $(PORT)" || true
 
 # --- Serve: GPT-OSS 20B model -----------------------------------------------------
-.PHONY: serve
-serve:
+.PHONY: serve-gpt-oss-20b
+serve-gpt-oss-20b:
 	@mkdir -p $(LOG_DIR)
-	@echo "Serving $(MODEL_ID) on $(HOST):$(PORT) (TP=$(TP)) ..."
+	@echo "Serving $(MODEL_GPT_OSS_20B) on $(HOST):$(PORT) (TP=$(TP)) ..."
 	@CUDA_VISIBLE_DEVICES=$(CUDA_DEVICES) \
 	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-	$(VLLM) serve $(MODEL_ID) \
+	$(VLLM) serve $(MODEL_GPT_OSS_20B) \
 	  --host $(HOST) --port $(PORT) \
 	  --tensor-parallel-size $(TP) \
 	  --gpu-memory-utilization $(GPU_UTIL) \
 	  --max-model-len $(MAX_LEN) \
 	  --max-num-seqs $(NUM_SEQS) \
       --tool-call-parser openai \
-	  --enable-auto-tool-choice 2>&1 | tee "$(LOG_DIR)/$(MODEL_ID).$(PORT).log"
-
-# Convenience: 2-GPU tensor parallel on powerful boxes (e.g., 2× 48GB)
-.PHONY: serve-tp2
-serve-tp2:
-	@$(MAKE) serve TP=2 CUDA_DEVICES=0,1 GPU_UTIL=$(GPU_UTIL) MAX_LEN=$(MAX_LEN) NUM_SEQS=$(NUM_SEQS)
-
-# Lightweight local dev model (good for 8–12 GB GPUs)
-.PHONY: serve-8b
-serve-8b:
-	@echo "Serving $(DEV_MODEL_ID) on $(HOST):$(PORT) ..."
-	@CUDA_VISIBLE_DEVICES=$(CUDA_DEVICES) \
-	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-	$(VLLM) serve $(DEV_MODEL_ID) \
-	  --host $(HOST) --port $(PORT) \
-	  --tensor-parallel-size 1 \
-	  --gpu-memory-utilization 0.90 \
-	  --max-model-len 4096 \
-	  --max-num-seqs 4
+	  --enable-auto-tool-choice 2>&1 | tee "$(LOG_DIR)/$(MODEL_GPT_OSS_20B).$(PORT).log"
 
 # --- Tests ---------------------------------------------------------------------
 .PHONY: test-models test-tools
@@ -212,7 +177,7 @@ test-models:
 
 test-tools:
 	BASE_URL="http://$(strip $(HOST)):$(strip $(PORT))/v1" \
-	MODEL_ID="$(MODEL_ID)" \
+	MODEL_ID="$(MODEL_GPT_OSS_20B)" \
 	AUTH_TOKEN="$(strip $(AUTH_TOKEN))" \
 	scripts/test_tools.sh
 
