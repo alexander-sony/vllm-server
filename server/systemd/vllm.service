@@ -1,0 +1,18 @@
+[Unit]
+Description=vLLM (one-port, single-folder Docker Compose)
+After=network-online.target docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/vllm
+Environment=COMPOSE_FILE=/opt/vllm/docker-compose.yml
+RemainAfterExit=yes
+ExecStart=/opt/vllm/docker-compose --env-file /opt/vllm/.env.active up -d vllm
+ExecStop=/opt/vllm/docker-compose --env-file /opt/vllm/.env.active down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

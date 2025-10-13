@@ -1,0 +1,14 @@
+# Docker Compose binary (downloaded automatically)
+docker-compose
+
+# Environment files
+.env*
+!.env*.example
+
+# Data directories
+data/
+logs/
+
+# Temporary files
+*.tmp
+*.log

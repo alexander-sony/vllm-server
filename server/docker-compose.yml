@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    env_file: .env.active
+    command: >
+      --model ${MODEL}
+      --host 0.0.0.0
+      --port ${PORT}
+      --api-key ${VLLM_API_KEY}
+      --max-model-len ${MAX_LEN:-8192}
+      --tensor-parallel-size ${TP_SIZE:-1}
+      ${QUANTIZATION:+--quantization ${QUANTIZATION}}
+      --tool-call-parser ${TOOL_PARSER:-openai}
+      --enable-auto-tool-choice
+    ports:
+      - "${BIND_IP:-0.0.0.0}:${PORT}:${PORT}"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    environment:
+      HF_HOME: ${HF_HOME}
+    volumes:
+      - ./data:/var/lib/vllm
+      - ./data/hf:${HF_HOME}
+    restart: unless-stopped
