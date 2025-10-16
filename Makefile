@@ -181,6 +181,28 @@ test-tools:
 	AUTH_TOKEN="$(strip $(AUTH_TOKEN))" \
 	scripts/test_tools.sh
 
+# --- Serve: GPT-OSS 20B model -----------------------------------------------------
+.PHONY: serve-gpt-oss-20b-tp2
+serve-gpt-oss-20b-tp2:
+	@mkdir -p $(LOG_DIR)
+	@echo "Serving $(MODEL_GPT_OSS_20B) on $(HOST):$(PORT) (TP=2) ..."
+	NCCL_P2P_DISABLE=0 \
+	NCCL_P2P_LEVEL=NVL \
+	NCCL_SHM_DISABLE=0 \
+	CUDA_VISIBLE_DEVICES=0,1 \
+	PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+	$(VLLM) serve $(MODEL_GPT_OSS_20B) \
+	  --host $(HOST) --port $(PORT) \
+	  --tensor-parallel-size 2 \
+	  --gpu-memory-utilization 0.90 \
+	  --max-model-len 16384 \
+	  --max-num-seqs 16 \
+	  --swap-space 8 \
+	  --enforce-eager \
+	  --disable-custom-all-reduce \
+	  --tool-call-parser openai \
+	  --enable-auto-tool-choice 2>&1 | tee "$(LOG_DIR)/$(MODEL_GPT_OSS_20B).$(PORT).log"
+
 # --- Remote access helpers -----------------------------------------------------
 # SSH tunnel: forwards local $(PORT) -> remote $(PORT)
 .PHONY: ssh-tunnel

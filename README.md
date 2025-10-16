@@ -18,6 +18,108 @@ We use **GNU Screen** to keep the server running in the background, even after S
 
 ---
 
+## 🧮 Memory Consumption Calculation
+
+Understanding how to calculate memory usage for different context lengths is crucial for optimizing your vLLM server configuration.
+
+### Memory Components
+
+**Total GPU Memory = Model Memory + Context Memory + Overhead**
+
+#### 1. Model Memory
+- **GPT-OSS 20B**: ~20GB (with quantization)
+- **Llama 70B INT4**: ~35GB + 2GB overhead = ~37GB
+- **Llama 8B**: ~8GB
+
+#### 2. Context Memory (KV Cache)
+The context memory scales with the number of tokens and model architecture:
+
+```
+Context Memory = Tokens × Layers × 2 bytes × 2 (K + V cache)
+```
+
+**For GPT-OSS 20B:**
+- **Layers**: ~40-50 layers
+- **Memory per token**: ~80-100 bytes per token
+- **Formula**: `Tokens × 100 bytes`
+
+**Examples:**
+- **4K tokens**: 4,096 × 100 bytes = ~400MB per GPU
+- **8K tokens**: 8,192 × 100 bytes = ~800MB per GPU  
+- **16K tokens**: 16,384 × 100 bytes = ~1.6GB per GPU
+- **32K tokens**: 32,768 × 100 bytes = ~3.2GB per GPU
+
+#### 3. Memory Overhead
+- **CUDA overhead**: ~1-2GB
+- **PyTorch overhead**: ~500MB-1GB
+- **System overhead**: ~500MB
+
+### Practical Examples
+
+#### Example 1: GPT-OSS 20B on 2×RTX 4090 (48GB total)
+```
+Model Memory:     20GB
+Context (32K):    6.4GB  (3.2GB per GPU)
+Overhead:         2GB
+Total:           28.4GB  (fits comfortably in 48GB)
+```
+
+#### Example 2: Llama 70B INT4 on 2×RTX 4090
+```
+Model Memory:     37GB
+Context (8K):     1.6GB  (800MB per GPU)
+Overhead:         2GB
+Total:           40.6GB  (tight fit, may need smaller context)
+```
+
+#### Example 3: GPT-OSS 20B on 2×A6000 (96GB total)
+```
+Model Memory:     20GB
+Context (64K):   12.8GB  (6.4GB per GPU)
+Overhead:         2GB
+Total:           34.8GB  (excellent headroom in 96GB)
+```
+
+#### Example 4: Llama 70B INT4 on 1×A6000 (48GB)
+```
+Model Memory:     37GB
+Context (16K):    3.2GB
+Overhead:         2GB
+Total:           42.2GB  (comfortable fit in 48GB)
+```
+
+### Context Length Recommendations
+
+| GPU Setup | Model | Recommended Context | Max Context |
+|-----------|-------|-------------------|-------------|
+| 2×RTX 4090 (48GB) | GPT-OSS 20B | 16K-32K tokens | 32K+ tokens |
+| 2×RTX 4090 (48GB) | Llama 70B INT4 | 4K-8K tokens | 8K-16K tokens |
+| 1×RTX 4090 (24GB) | GPT-OSS 20B | 8K-16K tokens | 16K tokens |
+| 1×RTX 4090 (24GB) | Llama 8B | 16K-32K tokens | 32K+ tokens |
+| 2×A6000 (96GB) | GPT-OSS 20B | 32K-64K tokens | 64K+ tokens |
+| 2×A6000 (96GB) | Llama 70B INT4 | 16K-32K tokens | 32K+ tokens |
+| 1×A6000 (48GB) | GPT-OSS 20B | 16K-32K tokens | 32K+ tokens |
+| 1×A6000 (48GB) | Llama 70B INT4 | 8K-16K tokens | 16K-32K tokens |
+
+### Memory Optimization Tips
+
+1. **Reduce context length** if you get OOM errors
+2. **Use `--enforce-eager`** to disable CUDA graphs (saves memory)
+3. **Enable `--swap-space`** for additional memory when needed
+4. **Monitor with `gpustat`** to see actual memory usage
+5. **Use tensor parallelism** to distribute memory across GPUs
+
+### Quick Memory Check
+```bash
+# Check current GPU memory usage
+gpustat
+
+# Monitor during server startup
+watch -n 1 gpustat
+```
+
+---
+
 ## ⚙️ Prerequisites
 
 - The virtual environment (`.venv`) is already set up inside this folder.
